@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+# Cursor configuration
+cursor:
+  # Set to true to enable cursor support
+  enabled: true
+  # Cursor model options: cursor-fast, cursor-small
+  model:
+    - cursor-fast
+    - cursor-small
+  # Your cursor session token (required for authentication)
+  # Get this from your browser cookies when logged into cursor.com
+  # Look for the WorkosCursorSessionToken cookie
+  cookie: "your_cursor_session_token_here"
+  # Optional checksum value (leave empty if not needed)
+  checksum: ""
+
