@@ -22,7 +22,26 @@ The easiest way to get started is using Docker:
 
 ## Getting Your Cursor Token
 
-To get your Cursor session token:
+There are two ways to get your Cursor session token:
+
+### Option 1: Using the Cursor Login Tool (Recommended)
+
+1. Run the cursor login tool:
+   ```powershell
+   .\bin\windows\cursor-login.exe
+   ```
+   or use the provided PowerShell script:
+   ```powershell
+   .\cursor-login.ps1
+   ```
+
+2. The tool will:
+   - Open your default browser to the Cursor login page
+   - Wait for you to log in
+   - Automatically retrieve and save your token to config.yaml
+   - Display the token for your reference
+
+### Option 2: Manual Extraction
 
 1. Open Chrome and go to https://cursor.com (make sure you're logged in)
 2. Press F12 to open Developer Tools
@@ -95,8 +114,8 @@ The following models are available through the Cursor adapter:
 - **Authentication Error**: Make sure your Cursor token is valid and correctly formatted in both the config.yaml file and your API requests.
 - **Connection Issues**: Ensure port 8080 is not being used by another application.
 - **Docker Issues**: Make sure Docker is running and you have sufficient permissions.
+- **Login Tool Issues**: If the login tool fails, try the manual extraction method or check if your browser is blocking the login page.
 
 ## Advanced Configuration
 
 For advanced configuration options, refer to the [official documentation](https://bincooo.github.io/chatgpt-adapter/#/cursor).
-
