@@ -1,82 +1,68 @@
-# Setting Up ChatGPT Adapter with Cursor Support
+# Setting Up ChatGPT Adapter with Cursor
 
-This guide explains how to set up and use the ChatGPT Adapter with Cursor implementation.
+This guide explains how to set up and use the ChatGPT Adapter with Cursor AI models.
 
-## Prerequisites
+## What is Cursor?
 
-- Windows operating system
-- Go installed (version 1.21 or higher recommended)
-- Git installed
-- Docker installed (optional, for Docker deployment)
-- A valid Cursor account with session token
+[Cursor](https://www.cursor.com/) is an AI-powered code editor that provides access to various AI models including Claude and GPT models. The ChatGPT Adapter allows you to use these models through a standard OpenAI API interface.
 
-## Getting Your Cursor Session Token
+## Docker Setup (Recommended)
 
-To use the Cursor implementation, you need to obtain your Cursor session token:
+The easiest way to get started is using Docker:
 
-1. Log in to [Cursor](https://www.cursor.com) in your web browser
-2. Open your browser's developer tools (F12 or right-click and select "Inspect")
-3. Go to the "Application" tab (Chrome) or "Storage" tab (Firefox)
-4. In the left sidebar, expand "Cookies" and select the Cursor website
-5. Look for the cookie named `WorkosCursorSessionToken`
-6. Copy the value of this cookie - this is your session token
-
-## Deployment Options
-
-### Option 1: Using the PowerShell Script (Recommended)
-
-1. Open PowerShell in the project directory
-2. Run the deployment script:
+1. Run the `deploy-docker.ps1` script:
    ```powershell
-   .\deploy.ps1
+   .\deploy-docker.ps1
    ```
-3. The script will:
-   - Check for required dependencies
-   - Install the iocgo tool
-   - Build the application for Windows
-   - Create a default configuration file (config.yaml) if it doesn't exist
-   - Offer to build and run a Docker container (if Docker is installed)
 
-4. After running the script, edit the `config.yaml` file to add your Cursor session token:
+2. The script will:
+   - Create a config directory and config.yaml file
+   - Prompt you to edit the config file to add your Cursor token
+   - Run the Docker container if you choose to
+
+## Getting Your Cursor Token
+
+To get your Cursor session token:
+
+1. Open Chrome and go to https://cursor.com (make sure you're logged in)
+2. Press F12 to open Developer Tools
+3. Go to the "Application" tab
+4. In the left sidebar, click on "Cookies" under "Storage"
+5. Find the `WorkosCursorSessionToken` cookie and copy its value
+6. Replace "YOUR_CURSOR_TOKEN_HERE" in the config.yaml file with this value
+
+## Manual Docker Setup
+
+If you prefer to set up manually:
+
+1. Create a config.yaml file:
    ```yaml
+   server:
+     port: 8080
+
    cursor:
      enabled: true
      model:
-       - cursor-fast
-       - cursor-small
-     cookie: "your_cursor_session_token_here"
-     checksum: ""
+       - cursor/claude-3.7-sonnet-thinking
+     cookie: "YOUR_CURSOR_TOKEN_HERE"
+     checksum: ""  # Will be auto-generated if empty
    ```
 
-5. Start the server using one of the methods provided by the script
-
-### Option 2: Manual Docker Setup
-
-If you prefer to manually set up Docker:
-
-1. Create a `config.yaml` file with your Cursor configuration (see example in `config.yaml.sample`)
-2. Build the Docker image:
-   ```bash
-   docker build -t chatgpt-adapter:latest -f deploy/Dockerfile .
-   ```
-3. Run the Docker container:
-   ```bash
-   docker run -p 8080:8080 -v ./config.yaml:/app/config.yaml chatgpt-adapter:latest
+2. Run the Docker container:
+   ```powershell
+   docker run -p 8080:8080 -v ${PWD}/config.yaml:/app/config.yaml ghcr.io/bincooo/chatgpt-adapter:latest
    ```
 
-## Using the Adapter
+## Testing Your Setup
 
-Once the server is running, you can use it as an OpenAI API-compatible endpoint:
+Once the container is running, you can test it with:
 
-- API Endpoint: `http://localhost:8080/v1/chat/completions`
-- Model names: `cursor-fast` or `cursor-small`
-
-Example curl request:
-```bash
-curl http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
+```powershell
+curl http://localhost:8080/v1/chat/completions `
+  -H "Content-Type: application/json" `
+  -H "Authorization: YOUR_CURSOR_TOKEN_HERE" `
   -d '{
-    "model": "cursor-fast",
+    "model": "cursor/claude-3.7-sonnet-thinking",
     "messages": [
       {
         "role": "user",
@@ -87,14 +73,30 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
+## Available Cursor Models
+
+The following models are available through the Cursor adapter:
+
+- `cursor/claude-3.7-sonnet`
+- `cursor/claude-3.7-sonnet-thinking`
+- `cursor/claude-3-opus`
+- `cursor/claude-3.5-haiku`
+- `cursor/claude-3.5-sonnet`
+- `cursor/gpt-4o`
+- `cursor/gpt-4o-mini`
+- `cursor/gpt-4-turbo-2024-04-09`
+- `cursor/gpt-4`
+- `cursor/gpt-3.5-turbo`
+- `cursor/o1-mini`
+- `cursor/o1-preview`
+
 ## Troubleshooting
 
-- **Authentication Issues**: If you receive authentication errors, make sure your Cursor session token is valid and correctly entered in the config.yaml file.
-- **Build Errors**: If you encounter build errors, try running `go clean -cache` and then rebuild.
-- **Docker Issues**: If Docker fails to build or run, check that your Docker installation is working correctly and that you have sufficient permissions.
+- **Authentication Error**: Make sure your Cursor token is valid and correctly formatted in both the config.yaml file and your API requests.
+- **Connection Issues**: Ensure port 8080 is not being used by another application.
+- **Docker Issues**: Make sure Docker is running and you have sufficient permissions.
 
-## Additional Resources
+## Advanced Configuration
 
-- [Cursor Website](https://www.cursor.com)
-- [ChatGPT Adapter Documentation](https://bincooo.github.io/chatgpt-adapter)
+For advanced configuration options, refer to the [official documentation](https://bincooo.github.io/chatgpt-adapter/#/cursor).
 
