@@ -6,6 +6,7 @@ $PORT = 8080
 $CONFIG_FILE = "config.yaml"
 $DOCKER_IMAGE_NAME = "chatgpt-adapter"
 $DOCKER_TAG = "latest"
+$CURSOR_MODEL = "cursor/claude-3.7-sonnet-thinking"
 
 # Function to check if a command exists
 function Test-Command {
@@ -97,10 +98,9 @@ server:
 cursor:
   # Set to true to enable cursor support
   enabled: true
-  # Cursor model options: cursor-fast, cursor-small
+  # Cursor model options
   model:
-    - cursor-fast
-    - cursor-small
+    - claude-3.7-sonnet-thinking
   # Your cursor session token (required for authentication)
   # Get this from your browser cookies when logged into cursor.com
   # Look for the WorkosCursorSessionToken cookie
@@ -127,7 +127,7 @@ if ($dockerInstalled) {
             # Create a temporary Dockerfile for the build
             $dockerfilePath = ".\Dockerfile.tmp"
 @"
-FROM golang:1.23-alpine AS builder
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 COPY . .
@@ -135,10 +135,21 @@ RUN apk add git make
 RUN go install -ldflags="-s -w" -trimpath ./cmd/iocgo
 RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -toolexec iocgo -ldflags="-s -w" -o server -trimpath main.go
 
-FROM alpine:3.19.0
+FROM ubuntu:latest
+
 WORKDIR /app
 COPY --from=builder /app/server ./server
 COPY $CONFIG_FILE ./config.yaml
+
+RUN apt update \
+  && apt-get install -y curl unzip wget gnupg2
+
+# Install Google Chrome (required for Cursor)
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update \
+  && apt-get install -y google-chrome-stable
+
 RUN chmod +x server
 
 ENV ARG "--port $PORT"
@@ -192,6 +203,21 @@ Write-ColoredMessage "IMPORTANT: For Cursor support, edit $CONFIG_FILE to add yo
 Write-ColoredMessage ""
 Write-ColoredMessage "The server will be accessible at:" "Yellow"
 Write-ColoredMessage "http://localhost:$PORT" "White"
+Write-ColoredMessage ""
+Write-ColoredMessage "Example curl request for Claude 3.7 Sonnet Thinking:" "Yellow"
+Write-ColoredMessage "curl http://localhost:$PORT/v1/chat/completions ^" "White"
+Write-ColoredMessage "  -H \"Content-Type: application/json\" ^" "White"
+Write-ColoredMessage "  -H \"Authorization: your_cursor_session_token_here\" ^" "White"
+Write-ColoredMessage "  -d '{" "White"
+Write-ColoredMessage "    \"model\": \"$CURSOR_MODEL\"," "White"
+Write-ColoredMessage "    \"messages\": [" "White"
+Write-ColoredMessage "      {" "White"
+Write-ColoredMessage "        \"role\": \"user\"," "White"
+Write-ColoredMessage "        \"content\": \"Hello, can you help me with some code?\"" "White"
+Write-ColoredMessage "      }" "White"
+Write-ColoredMessage "    ]," "White"
+Write-ColoredMessage "    \"stream\": true" "White"
+Write-ColoredMessage "  }'" "White"
 Write-ColoredMessage ""
 
 if ($dockerInstalled -and ($buildDocker -eq "y" -or $buildDocker -eq "Y") -and ($runDocker -eq "y" -or $runDocker -eq "Y")) {
