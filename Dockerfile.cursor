@@ -1,0 +1,29 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+RUN apk add git make && git clone https://github.com/bincooo/chatgpt-adapter.git .
+RUN go mod edit -go=1.21
+RUN make install
+RUN make build-linux
+
+FROM ubuntu:latest
+
+WORKDIR /app
+COPY --from=builder /app/bin/linux/server ./server
+
+RUN apt update \
+  && apt-get install -y curl unzip wget gnupg2
+
+# Install Chrome (required for Cursor)
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+  && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+  && apt-get update \
+  && apt-get install -y google-chrome-stable
+
+# Create default config file
+RUN echo -e 'server:\n  port: 8080\n\ncursor:\n  enabled: true\n  model:\n    - cursor/claude-3.7-sonnet-thinking\n  cookie: "YOUR_CURSOR_TOKEN_HERE"\n  checksum: ""' > ./config.yaml
+
+ENV ARG "--port 8080"
+CMD ["./server ${ARG}"]
+ENTRYPOINT ["sh", "-c"]
+
