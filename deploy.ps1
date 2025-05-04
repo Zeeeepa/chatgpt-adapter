@@ -71,6 +71,22 @@ try {
     exit 1
 }
 
+# Build the cursor login tool
+Write-ColoredMessage "Building cursor login tool..." "Yellow"
+try {
+    $env:CGO_ENABLED = 0
+    $env:GOARCH = "amd64"
+    $env:GOOS = "windows"
+    go build -ldflags="-s -w" -o bin\windows\cursor-login.exe -trimpath ./cmd/cursor-login/main.go
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to build cursor login tool"
+    }
+    Write-ColoredMessage "Successfully built cursor login tool" "Green"
+} catch {
+    Write-ColoredMessage "Error building cursor login tool: $_" "Red"
+    # Continue even if this fails
+}
+
 # Build the application
 Write-ColoredMessage "Building the application for Windows..." "Yellow"
 try {
@@ -201,6 +217,9 @@ Write-ColoredMessage ""
 Write-ColoredMessage "You can customize the configuration in $CONFIG_FILE" "Yellow"
 Write-ColoredMessage "IMPORTANT: For Cursor support, edit $CONFIG_FILE to add your Cursor session token" "Yellow"
 Write-ColoredMessage ""
+Write-ColoredMessage "To get your Cursor session token automatically, run:" "Yellow"
+Write-ColoredMessage ".\bin\windows\cursor-login.exe" "White"
+Write-ColoredMessage ""
 Write-ColoredMessage "The server will be accessible at:" "Yellow"
 Write-ColoredMessage "http://localhost:$PORT" "White"
 Write-ColoredMessage ""
@@ -224,6 +243,18 @@ if ($dockerInstalled -and ($buildDocker -eq "y" -or $buildDocker -eq "Y") -and (
     Write-ColoredMessage "Docker container is running. To stop it, run:" "Yellow"
     Write-ColoredMessage "docker stop chatgpt-adapter" "White"
     Write-ColoredMessage ""
+}
+
+# Ask if user wants to get Cursor token
+$getCursorToken = Read-Host "Do you want to get your Cursor token now? (y/n)"
+if ($getCursorToken -eq "y" -or $getCursorToken -eq "Y") {
+    Write-ColoredMessage "Running Cursor login tool..." "Yellow"
+    try {
+        Start-Process -FilePath ".\bin\windows\cursor-login.exe" -NoNewWindow -Wait
+        Write-ColoredMessage "Cursor login completed!" "Green"
+    } catch {
+        Write-ColoredMessage "Error running Cursor login tool: $_" "Red"
+    }
 }
 
 # Ask if user wants to start the server now (if not using Docker)
