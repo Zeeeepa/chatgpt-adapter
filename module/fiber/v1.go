@@ -1,11 +1,13 @@
 package fiber
 
 import (
+	"fmt"
+	"time"
+
 	"adapter/module"
 	"adapter/module/common"
 	"adapter/module/fiber/context"
 	"adapter/module/fiber/model"
-	"adapter/module/llm"
 	"adapter/module/logger"
 	"adapter/relay/llm/v1"
 	"github.com/gofiber/contrib/fiberzap/v2"
@@ -14,7 +16,8 @@ import (
 )
 
 var (
-	adapters = make([]module.Adapter, 0)
+	adapters      = make([]module.Adapter, 0)
+	GlobalTimeout = 60 * time.Second
 )
 
 func init() {
@@ -36,10 +39,6 @@ func ModelEach(yield func(index int, model model.ModelEntity)) {
 // 初始化fiber api
 func Initialized(addr string) {
 	app := fiber.New()
-	// app.Use(cors.New(cors.Config{
-	// 	AllowOrigins: "*",
-	// 	AllowHeaders: "Origin, Content-Type, Accept",
-	// }))
 
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
@@ -47,6 +46,7 @@ func Initialized(addr string) {
 			logger.Sugar().Errorf("panic: %v", err)
 		},
 	}))
+
 	app.Use(fiberzap.New(fiberzap.Config{
 		Logger: logger.Logger(),
 	}))
@@ -83,7 +83,6 @@ func completions(ctx *fiber.Ctx) (err error) {
 		return
 	}
 
-	ctx.Get("")
 	c := context.New(ctx)
 	c.Put("completion", completion)
 	for _, adapter := range adapters {
@@ -96,19 +95,21 @@ func completions(ctx *fiber.Ctx) (err error) {
 			return
 		}
 
-		var choice = false
-		if llm.WillToolExecute(c) {
-			choice, err = adapter.ToolExecuted(c)
-			if err != nil {
-				return
-			}
-		}
-
-		if !choice {
-			err = adapter.Completions(c)
-		}
-		break
+		//var choice = false
+		//if llm.WillToolExecute(c) {
+		//	choice, err = adapter.ToolExecuted(c)
+		//	if err != nil {
+		//		return
+		//	}
+		//}
+		//
+		//if !choice {
+		err = adapter.Completions(c)
+		//}
+		return
 	}
+
+	err = writeError(ctx, fmt.Sprintf("model [%s] is not found", completion.Model))
 	return
 }
 
@@ -126,6 +127,8 @@ func embeddings(ctx *fiber.Ctx) (err error) {
 			break
 		}
 	}
+
+	err = writeError(ctx, fmt.Sprintf("model [%s] is not found", embedding.Model))
 	return
 }
 
@@ -143,5 +146,17 @@ func generations(ctx *fiber.Ctx) (err error) {
 			break
 		}
 	}
+
+	err = writeError(ctx, fmt.Sprintf("model [%s] is not found", generation.Model))
+	return
+}
+
+func writeError(ctx *fiber.Ctx, msg string) (err error) {
+	ctx.Set("content-type", "application/json")
+	_, err = ctx.Status(fiber.StatusInternalServerError).WriteString(
+		(model.Record[string, any]{
+			"error": msg,
+		}).String(),
+	)
 	return
 }

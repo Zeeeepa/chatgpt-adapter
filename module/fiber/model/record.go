@@ -94,6 +94,15 @@ func (rec Record[Key, Value]) ValueIncludes(k Key, values ...Value) (ok bool) {
 //
 //	@param rec Record实例
 //	@param k 实例的key值
+func JustValue[Key comparable, Value any](rec Record[Key, any], k Key) (value Value) {
+	value, _ = GetValue[Key, Value](rec, k)
+	return
+}
+
+// 获取值
+//
+//	@param rec Record实例
+//	@param k 实例的key值
 func GetValue[Key comparable, Value any](rec Record[Key, any], k Key) (value Value, ok bool) {
 	return get[Key, Value](rec, k)
 }
