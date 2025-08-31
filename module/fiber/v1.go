@@ -2,6 +2,7 @@ package fiber
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"adapter/module"
@@ -10,14 +11,16 @@ import (
 	"adapter/module/fiber/model"
 	"adapter/module/logger"
 	"adapter/relay/llm/v1"
+
+	"github.com/bincooo/ja3"
 	"github.com/gofiber/contrib/fiberzap/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	xtls "github.com/refraction-networking/utls"
 )
 
 var (
-	adapters      = make([]module.Adapter, 0)
-	GlobalTimeout = 60 * time.Second
+	adapters = make([]module.Adapter, 0)
 )
 
 func init() {
@@ -26,10 +29,10 @@ func init() {
 	)
 }
 
-func ModelEach(yield func(index int, model model.ModelEntity)) {
+func ModelEach(yield func(index int, model model.Model)) {
 	idx := 0
 	for _, adapter := range adapters {
-		for _, mod := range adapter.Models() {
+		for _, mod := range adapter.Model() {
 			yield(idx, mod)
 			idx++
 		}
@@ -38,6 +41,14 @@ func ModelEach(yield func(index int, model model.ModelEntity)) {
 
 // 初始化fiber api
 func Initialized(addr string) {
+
+	http.DefaultTransport.(*http.Transport).IdleConnTimeout = 120 * time.Second
+	http.DefaultTransport = ja3.NewTransport(
+		ja3.WithProxy("http://127.0.0.1:7890"),
+		ja3.WithClientHelloID(xtls.HelloChrome_133),
+		ja3.WithOriginalTransport(http.DefaultTransport.(*http.Transport)),
+	)
+
 	app := fiber.New()
 
 	app.Use(recover.New(recover.Config{
@@ -78,7 +89,7 @@ func index(ctx *fiber.Ctx) error {
 }
 
 func completions(ctx *fiber.Ctx) (err error) {
-	completion := new(model.CompletionEntity)
+	completion := new(model.Completion)
 	if err = ctx.BodyParser(completion); err != nil {
 		return
 	}
@@ -86,27 +97,10 @@ func completions(ctx *fiber.Ctx) (err error) {
 	c := context.New(ctx)
 	c.Put("completion", completion)
 	for _, adapter := range adapters {
-		if !adapter.Condition(module.RELAY_TYPE_COMPLETIONS, c, completion.Model) {
+		if !adapter.Support(module.RELAY_TYPE_COMPLETIONS, c, completion.Model) {
 			continue
 		}
-
-		completion.Messages, err = adapter.HandleMessages(c)
-		if err != nil {
-			return
-		}
-
-		//var choice = false
-		//if llm.WillToolExecute(c) {
-		//	choice, err = adapter.ToolExecuted(c)
-		//	if err != nil {
-		//		return
-		//	}
-		//}
-		//
-		//if !choice {
-		err = adapter.Completions(c)
-		//}
-		return
+		return adapter.Relay(c)
 	}
 
 	err = writeError(ctx, fmt.Sprintf("model [%s] is not found", completion.Model))
@@ -114,7 +108,7 @@ func completions(ctx *fiber.Ctx) (err error) {
 }
 
 func embeddings(ctx *fiber.Ctx) (err error) {
-	embedding := new(model.EmbeddingEntity)
+	embedding := new(model.Embedding)
 	if err = ctx.BodyParser(embedding); err != nil {
 		return
 	}
@@ -122,8 +116,8 @@ func embeddings(ctx *fiber.Ctx) (err error) {
 	c := context.New(ctx)
 	c.Put("embedding", embedding)
 	for _, adapter := range adapters {
-		if adapter.Condition(module.RELAY_TYPE_EMBEDDINGS, c, embedding.Model) {
-			err = adapter.Embeddings(c)
+		if adapter.Support(module.RELAY_TYPE_EMBEDDINGS, c, embedding.Model) {
+			err = adapter.Embed(c)
 			break
 		}
 	}
@@ -133,7 +127,7 @@ func embeddings(ctx *fiber.Ctx) (err error) {
 }
 
 func generations(ctx *fiber.Ctx) (err error) {
-	generation := new(model.GenerationEntity)
+	generation := new(model.Generation)
 	if err = ctx.BodyParser(generation); err != nil {
 		return
 	}
@@ -141,9 +135,8 @@ func generations(ctx *fiber.Ctx) (err error) {
 	c := context.New(ctx)
 	c.Put("generation", generation)
 	for _, adapter := range adapters {
-		if adapter.Condition(module.RELAY_TYPE_GENERATIONS, c, generation.Model) {
-			err = adapter.Generates(c)
-			break
+		if adapter.Support(module.RELAY_TYPE_GENERATIONS, c, generation.Model) {
+			return adapter.Image(c)
 		}
 	}
 
@@ -152,11 +145,8 @@ func generations(ctx *fiber.Ctx) (err error) {
 }
 
 func writeError(ctx *fiber.Ctx, msg string) (err error) {
-	ctx.Set("content-type", "application/json")
-	_, err = ctx.Status(fiber.StatusInternalServerError).WriteString(
-		(model.Record[string, any]{
+	return ctx.Status(fiber.StatusInternalServerError).
+		JSON(model.Record[string, any]{
 			"error": msg,
-		}).String(),
-	)
-	return
+		})
 }

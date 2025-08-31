@@ -9,6 +9,7 @@ import (
 	"adapter/module/env"
 	"adapter/module/fiber"
 	"adapter/module/logger"
+
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,7 @@ var (
 			if cobraArgs.MView {
 				println("模型可用列表:")
 				var hasModel = false
-				fiber.ModelEach(func(index int, model model.ModelEntity) {
+				fiber.ModelEach(func(index int, model model.Model) {
 					println("    - " + model.Id)
 					hasModel = true
 				})

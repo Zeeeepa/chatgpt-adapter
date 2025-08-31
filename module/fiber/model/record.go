@@ -40,13 +40,6 @@ func (rec Record[Key, Value]) Values() iter.Seq[Value] {
 	return maps.Values(rec)
 }
 
-// 遍历所有元素
-func (rec Record[Key, Value]) Each(yield func(Key, Value)) {
-	for k, v := range rec {
-		yield(k, v)
-	}
-}
-
 // 是否包含 key
 func (rec Record[Key, Value]) Contains(k Key) bool {
 	value := rec[k]
@@ -77,7 +70,7 @@ func (rec Record[Key, Value]) ValueEqual(k Key, v Value) (ok bool) {
 }
 
 // 值包含
-func (rec Record[Key, Value]) ValueIncludes(k Key, values ...Value) (ok bool) {
+func (rec Record[Key, Value]) ValueEquals(k Key, values ...Value) (ok bool) {
 	if !rec.Contains(k) {
 		return
 	}

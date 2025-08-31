@@ -3,7 +3,6 @@ package module
 import (
 	"adapter/module/fiber/context"
 	"adapter/module/fiber/model"
-	"errors"
 )
 
 type RelayType byte
@@ -16,44 +15,28 @@ const (
 
 type Adapter interface {
 	// 判定函数
-	Condition(rt RelayType, ctx *context.Ctx, model string) bool
+	Support(rt RelayType, ctx *context.Ctx, model string) bool
 	// 上下文对话
-	Completions(ctx *context.Ctx) error
+	Relay(ctx *context.Ctx) error
 	// 向量查询
-	Embeddings(ctx *context.Ctx) error
+	Embed(ctx *context.Ctx) error
 	// 文生图
-	Generates(ctx *context.Ctx) error
+	Image(ctx *context.Ctx) error
 	// 模型列表
-	Models() []model.ModelEntity
-	// 工具选择
-	ToolExecuted(ctx *context.Ctx) (bool, error)
-	// 上下文处理
-	HandleMessages(ctx *context.Ctx) ([]model.CompletionMessageEntity, error)
+	Model() []model.Model
 }
 
 type BasicAdapter struct {
 }
 
-func (BasicAdapter) Completions(*context.Ctx) error {
+func (BasicAdapter) Relay(*context.Ctx) error {
 	return nil
 }
 
-func (BasicAdapter) Embeddings(*context.Ctx) error {
+func (BasicAdapter) Embed(*context.Ctx) error {
 	return nil
 }
 
-func (BasicAdapter) Generates(*context.Ctx) error {
+func (BasicAdapter) Image(*context.Ctx) error {
 	return nil
-}
-
-func (BasicAdapter) ToolExecuted(*context.Ctx) (ok bool, err error) { return }
-
-func (BasicAdapter) HandleMessages(ctx *context.Ctx) (messages []model.CompletionMessageEntity, err error) {
-	completion, ok := model.GetValue[string, *model.CompletionEntity](ctx.Record, "completion")
-	if !ok {
-		err = errors.New("completion not found")
-		return
-	}
-	messages = completion.Messages
-	return
 }

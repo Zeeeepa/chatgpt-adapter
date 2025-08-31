@@ -6,7 +6,7 @@ import (
 	"adapter/module/env"
 	"adapter/module/fiber/context"
 	"adapter/module/fiber/model"
-	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -45,8 +45,8 @@ type ada struct {
 
 func New() module.Adapter { return &ada{} }
 
-func (api *ada) Models() []model.ModelEntity {
-	return []model.ModelEntity{
+func (api *ada) Model() []model.Model {
+	return []model.Model{
 		{
 			Id:      "custom/llm ???",
 			Object:  "model",
@@ -57,7 +57,7 @@ func (api *ada) Models() []model.ModelEntity {
 }
 
 // 模型匹配，当命中时执行模型函数
-func (api *ada) Condition(rt module.RelayType, ctx *context.Ctx, mod string) (ret bool) {
+func (api *ada) Support(rt module.RelayType, ctx *context.Ctx, mod string) (ret bool) {
 	for _, rec := range schema {
 		if prefix, ok := model.GetValue[string, string](rec, "prefix"); ok && strings.HasPrefix(mod, prefix+"/") {
 			ctx.Put("custom-llm", rec)
@@ -69,16 +69,31 @@ func (api *ada) Condition(rt module.RelayType, ctx *context.Ctx, mod string) (re
 	return
 }
 
-func (api *ada) Completions(ctx *context.Ctx) (err error) {
-	ctx.SSE(func(writer func(interface{}) error) {
-		for i := range 10 {
-			time.Sleep(time.Second)
-			err = writer(fmt.Sprintf("write %d", i))
-			if err != nil {
-				return
+func (api *ada) Relay(ctx *context.Ctx) (err error) {
+	completion := model.JustValue[string, *model.Completion](ctx.Record, "completion")
+	unix := time.Now().Unix()
+
+	response, err := fetch(ctx)
+	if err != nil {
+		return err
+	}
+
+	if completion.Stream {
+		ctx.SSE(func(writer func(interface{}) error) {
+			chunkBodies := createChannel(response)
+			for {
+				bodies, ok := <-chunkBodies
+				if !ok {
+					err = writer(io.EOF)
+					return
+				}
+
+				err = writer(context.NewSSEResponse(bodies.Chunk, unix))
 			}
-		}
-		err = writer(context.SSE_EOF)
-	})
-	return
+		})
+		return
+	}
+
+	chunkBodies := waitChannel(response)
+	return ctx.JSON(context.NewResponse(chunkBodies.Chunk, unix))
 }

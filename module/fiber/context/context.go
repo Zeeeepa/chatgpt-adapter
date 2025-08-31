@@ -1,25 +1,16 @@
 package context
 
 import (
+	"adapter/module/fiber/model"
+	"adapter/module/logger"
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
-	"adapter/module/fiber/model"
-	"adapter/module/logger"
 	"github.com/gofiber/fiber/v2"
 )
-
-const (
-	SSE_EOF = "EOF"
-
-	SSE_DATA SSEEvent = iota
-	SSE_ERROR
-	SSE_EVENT
-)
-
-type SSEEvent = byte
 
 type Ctx struct {
 	ctx *fiber.Ctx
@@ -37,7 +28,7 @@ func New(ctx *fiber.Ctx) *Ctx {
 	}
 }
 
-func (ctx *Ctx) FiberCtx() *fiber.Ctx {
+func (ctx *Ctx) Ctx() *fiber.Ctx {
 	return ctx.ctx
 }
 
@@ -51,10 +42,14 @@ func (ctx *Ctx) SSE(yield func(writer func(interface{}) error)) {
 
 	ctx.ctx.Status(fiber.StatusOK).Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 		yield(func(msg interface{}) error {
-			return write(w, SSE_DATA, msg)
+			return write(w, msg)
 		})
 	})
 	return
+}
+
+func (ctx *Ctx) JSON(msg interface{}) error {
+	return ctx.ctx.JSON(msg)
 }
 
 func token(ctx *fiber.Ctx) (token string) {
@@ -65,41 +60,39 @@ func token(ctx *fiber.Ctx) (token string) {
 	return
 }
 
-func write(w *bufio.Writer, event SSEEvent, msg interface{}) error {
+func write(w *bufio.Writer, msg interface{}) error {
+	event := "data"
+	var data string
 
-	if err, ok := msg.(error); ok {
-		msg = err.Error()
-	} else if obj, ok := msg.(interface{ String() string }); ok {
-		msg = obj.String()
-	} else if chunk, ok := msg.([]byte); ok {
-		msg = string(chunk)
-	} else if _, ok = msg.(string); !ok {
-		msg, err = json.Marshal(msg)
-		if err != nil {
-			msg = err.Error()
+	switch v := msg.(type) {
+	case interface{ String() string }:
+		data = v.String()
+	case []byte:
+		data = string(v)
+	case string:
+		data = v
+	case error:
+		if v == io.EOF {
+			data = "[done]"
+		} else {
+			event = "error"
+			data = v.Error()
 		}
-	}
-
-	var err error
-	switch event {
-	case SSE_DATA:
-		separator := "\n\n"
-		if msg == SSE_EOF {
-			msg = "[done]"
-			separator = ""
-		}
-		_, err = w.WriteString(fmt.Sprintf("data: %v%s", msg, separator))
-	case SSE_ERROR:
-		_, err = w.WriteString(fmt.Sprintf("error: %v\n\n", msg))
 	default:
-		_, err = w.WriteString(fmt.Sprintf("event: %v\n\n", msg))
+		chunk, err := json.Marshal(v)
+		if err != nil {
+			event = "error"
+			data = err.Error()
+		} else {
+			data = string(chunk)
+		}
 	}
 
+	_, err := fmt.Fprintf(w, "%s: %s\n\n", event, data)
 	if err != nil {
 		logger.Sugar().Errorf("write sse data error: %v", err)
 		return err
 	}
-
 	return flush(w)
 }
 
