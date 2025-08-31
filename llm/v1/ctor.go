@@ -1,23 +1,26 @@
 package v1
 
 import (
-	"adapter/module"
-	"adapter/module/common"
-	"adapter/module/env"
-	"adapter/module/fiber/context"
-	"adapter/module/fiber/model"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/bincooo/gptsdk"
+	"github.com/bincooo/gptsdk/common"
+	"github.com/bincooo/gptsdk/env"
+	"github.com/bincooo/gptsdk/fiber"
+	"github.com/bincooo/gptsdk/fiber/context"
+	"github.com/bincooo/gptsdk/fiber/model"
 )
 
 var (
-	_ module.Adapter = (*ada)(nil)
+	_ gptsdk.Adapter = (*ada)(nil)
 
 	schema = make([]model.Record[string, any], 0)
 )
 
 func init() {
+	fiber.AddAdapter(New())
 	common.AddInitialized(func(env *env.Environ) {
 		llm := env.Get("custom-llm")
 		if slice, ok := llm.([]interface{}); ok {
@@ -40,10 +43,10 @@ func init() {
 }
 
 type ada struct {
-	module.BasicAdapter
+	gptsdk.BasicAdapter
 }
 
-func New() module.Adapter { return &ada{} }
+func New() gptsdk.Adapter { return &ada{} }
 
 func (api *ada) Model() []model.Model {
 	return []model.Model{
@@ -57,7 +60,7 @@ func (api *ada) Model() []model.Model {
 }
 
 // 模型匹配，当命中时执行模型函数
-func (api *ada) Support(rt module.RelayType, ctx *context.Ctx, mod string) (ret bool) {
+func (api *ada) Support(rt gptsdk.RelayType, ctx *context.Ctx, mod string) (ret bool) {
 	for _, rec := range schema {
 		if prefix, ok := model.GetValue[string, string](rec, "prefix"); ok && strings.HasPrefix(mod, prefix+"/") {
 			ctx.Put("custom-llm", rec)

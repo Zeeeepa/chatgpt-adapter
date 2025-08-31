@@ -1,13 +1,14 @@
 package v1
 
 import (
-	"adapter/module/common"
-	"adapter/module/fiber/context"
-	"adapter/module/fiber/model"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+
+	"github.com/bincooo/gptsdk/common"
+	"github.com/bincooo/gptsdk/fiber/context"
+	"github.com/bincooo/gptsdk/fiber/model"
 
 	"github.com/go-resty/resty/v2"
 )

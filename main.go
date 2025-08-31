@@ -1,9 +1,11 @@
 package main
 
 import (
-	"adapter/cmd"
+	"github.com/bincooo/gptsdk/cobra"
+
+	_ "adapter/llm/v1"
 )
 
 func main() {
-	cmd.Initialized()
+	cobra.Initialized()
 }

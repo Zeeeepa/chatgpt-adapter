@@ -1,10 +1,11 @@
 package v1
 
 import (
-	"adapter/module/fiber/model"
-	"adapter/module/logger"
 	"bufio"
 	"encoding/json"
+
+	"github.com/bincooo/gptsdk/fiber/model"
+	"github.com/bincooo/gptsdk/logger"
 
 	"github.com/go-resty/resty/v2"
 )
