@@ -2,27 +2,22 @@ package v1
 
 import (
 	"io"
-	"strings"
 	"time"
 
-	"github.com/bincooo/gptsdk"
-	"github.com/bincooo/gptsdk/common"
-	"github.com/bincooo/gptsdk/env"
-	"github.com/bincooo/gptsdk/fiber"
-	"github.com/bincooo/gptsdk/fiber/context"
-	"github.com/bincooo/gptsdk/fiber/model"
+	"github.com/bincooo/ago"
+	"github.com/bincooo/ago/model"
 )
 
 var (
-	_ gptsdk.Adapter = (*ada)(nil)
-
 	schema = make([]model.Record[string, any], 0)
+	Sdk    = ago.Sdk()
 )
 
 func init() {
-	fiber.AddAdapter(New())
-	common.AddInitialized(func(env *env.Environ) {
-		llm := env.Get("custom-llm")
+	Sdk.OnInitialized(func() {
+		environ := Sdk.Env()
+		llm := environ.Get("custom-llm")
+		var regex []string
 		if slice, ok := llm.([]interface{}); ok {
 			for _, it := range slice {
 				var rec model.Record[string, any]
@@ -37,66 +32,38 @@ func init() {
 					panic("`reversal` not found in config.yaml ==> custom-llm")
 				}
 				schema = append(schema, rec)
+				regex = append(regex, model.JustValue[string, string](rec, "prefix")+"/*")
 			}
 		}
-	})
-}
 
-type ada struct {
-	gptsdk.BasicAdapter
-}
+		Sdk.Plugin(regex...).
+			Relay(func(ctx *model.Ctx) (err error) {
+				completion := model.JustValue[string, *model.Completion](ctx.Record, "completion")
+				unix := time.Now().Unix()
 
-func New() gptsdk.Adapter { return &ada{} }
+				response, err := fetch(ctx)
+				if err != nil {
+					return err
+				}
 
-func (api *ada) Model() []model.Model {
-	return []model.Model{
-		{
-			Id:      "custom/llm ???",
-			Object:  "model",
-			Created: 1686935002,
-			By:      "custom-adapter",
-		},
-	}
-}
+				if completion.Stream {
+					ctx.SSE(func(writer func(interface{}) error) {
+						chunkBodies := createChannel(response)
+						for {
+							bodies, ok := <-chunkBodies
+							if !ok {
+								err = writer(io.EOF)
+								return
+							}
 
-// 模型匹配，当命中时执行模型函数
-func (api *ada) Support(rt gptsdk.RelayType, ctx *context.Ctx, mod string) (ret bool) {
-	for _, rec := range schema {
-		if prefix, ok := model.GetValue[string, string](rec, "prefix"); ok && strings.HasPrefix(mod, prefix+"/") {
-			ctx.Put("custom-llm", rec)
-			ctx.Put("original-model", mod[len(prefix)+1:])
-			ret = true
-			return
-		}
-	}
-	return
-}
-
-func (api *ada) Relay(ctx *context.Ctx) (err error) {
-	completion := model.JustValue[string, *model.Completion](ctx.Record, "completion")
-	unix := time.Now().Unix()
-
-	response, err := fetch(ctx)
-	if err != nil {
-		return err
-	}
-
-	if completion.Stream {
-		ctx.SSE(func(writer func(interface{}) error) {
-			chunkBodies := createChannel(response)
-			for {
-				bodies, ok := <-chunkBodies
-				if !ok {
-					err = writer(io.EOF)
+							err = writer(model.MakeSSEResponse(bodies.Chunk, unix))
+						}
+					})
 					return
 				}
 
-				err = writer(context.NewSSEResponse(bodies.Chunk, unix))
-			}
-		})
-		return
-	}
-
-	chunkBodies := waitChannel(response)
-	return ctx.JSON(context.NewResponse(chunkBodies.Chunk, unix))
+				chunkBodies := waitChannel(response)
+				return ctx.JSON(model.MakeResponse(chunkBodies.Chunk, unix))
+			}).Append()
+	})
 }

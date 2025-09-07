@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 
-	"github.com/bincooo/gptsdk/fiber/model"
-	"github.com/bincooo/gptsdk/logger"
+	"github.com/bincooo/ago/logger"
+	"github.com/bincooo/ago/model"
 
 	"github.com/go-resty/resty/v2"
 )

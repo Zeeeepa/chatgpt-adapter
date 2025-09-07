@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/bincooo/gptsdk/cobra"
+	"github.com/bincooo/ago"
 
+	_ "adapter/llm/lmarena"
 	_ "adapter/llm/v1"
 )
 
 func main() {
-	cobra.Initialized()
+	ago.Execute()
 }

@@ -5,21 +5,33 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
-	"github.com/bincooo/gptsdk/common"
-	"github.com/bincooo/gptsdk/fiber/context"
-	"github.com/bincooo/gptsdk/fiber/model"
+	"github.com/bincooo/ago/kit"
+	"github.com/bincooo/ago/model"
 
 	"github.com/go-resty/resty/v2"
 )
 
-func fetch(ctx *context.Ctx) (r *resty.Response, err error) {
+func fetch(ctx *model.Ctx) (r *resty.Response, err error) {
 	var (
-		llm        = model.JustValue[string, model.Record[string, any]](ctx.Record, "custom-llm")
 		completion = model.JustValue[string, *model.Completion](ctx.Record, "completion")
 	)
 
-	completion = common.Copy(completion)
+	completion = kit.Copy(completion)
+
+	splinter := strings.Split(completion.Model, "/")
+	mod := strings.Join(splinter[1:], "/")
+	prefix := splinter[0]
+	reversal := "undefined"
+
+	for _, rec := range schema {
+		if rec.ValueEqual("prefix", prefix) {
+			reversal = model.JustValue[string, string](rec, "reversal")
+			break
+		}
+	}
+
 	if completion.TopP == 0 {
 		completion.TopP = 1
 	}
@@ -33,7 +45,7 @@ func fetch(ctx *context.Ctx) (r *resty.Response, err error) {
 	}
 
 	completion.Stream = true
-	completion.Model = model.JustValue[string, string](ctx.Record, "original-model")
+	completion.Model = strings.Replace(mod, "_", "/", -1)
 	obj, err := toMap(completion)
 	if err != nil {
 		return nil, err
@@ -49,7 +61,7 @@ func fetch(ctx *context.Ctx) (r *resty.Response, err error) {
 		SetHeader("Authorization", "Bearer "+ctx.Token).
 		SetDoNotParseResponse(true).
 		SetBody(obj).
-		Post(model.JustValue[string, string](llm, "reversal") + "/chat/completions")
+		Post(reversal + "/chat/completions")
 	if err != nil {
 		return
 	}
